@@ -14,6 +14,12 @@ const (
 	totalHeight = 768
 )
 
+var (
+	mint      = color.RGBA{245, 255, 250, 255}
+	slateGray = color.RGBA{112, 128, 144, 255}
+	black     = color.RGBA{0, 0, 0, 255}
+)
+
 type vec3f struct {
 	X float64
 	Y float64
@@ -57,37 +63,50 @@ func (v *vec3f) norm() float64 {
 type Sphere struct {
 	Center vec3f
 	Radius float64
+	Color  color.RGBA
 }
 
-// RayIntersect determines if the provided ray interescts with s
-func (s Sphere) RayIntersect(orig *vec3f, dir *vec3f, t float64) bool {
+// RayIntersect determines if the provided ray interescts with s.
+// If an interesction occurs, the distance is also returns.
+// If not intersections, a zero value for distance is returned
+func (s Sphere) RayIntersect(orig *vec3f, dir *vec3f) (bool, float64) {
 	l := s.Center.Subtract(orig)
 	tca := l.Multiply(dir)
 	d2 := l.Multiply(l) - tca*tca
 	if d2 > s.Radius*s.Radius {
-		return false
+		return false, 0
 	}
 	thc := math.Sqrt(s.Radius*s.Radius - d2)
-	t = tca - thc
+	t := tca - thc
 	t1 := tca + thc
 	if t < 0 {
 		t = t1
 	}
 	if t < 0 {
-		return false
+		return false, 0
 	}
-	return true
+	return true, t
 }
 
-func castRay(orig *vec3f, dir *vec3f, sphere *Sphere) color.RGBA {
-	if sphere.RayIntersect(orig, dir, math.MaxFloat64) {
-		return color.RGBA{102, 102, 77, 255}
+func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere) color.RGBA {
+	curDist := math.MaxFloat64
+	curColor := color.RGBA{55, 176, 202, 255}
+	for _, sphere := range spheres {
+		intersect, dist := sphere.RayIntersect(orig, dir)
+		if intersect && dist < curDist {
+			curColor = sphere.Color
+			curDist = dist
+		}
 	}
-	return color.RGBA{55, 176, 202, 255}
+	return curColor
 }
 
 func main() {
-	sphere := &Sphere{Center: vec3f{-3, 0, -16}, Radius: 2}
+	spheres := []*Sphere{
+		{Center: vec3f{-4, -1, -27}, Radius: 4, Color: black},
+		{Center: vec3f{-3, 0, -16}, Radius: 2, Color: mint},
+		{Center: vec3f{-3, 2, -14}, Radius: 2, Color: slateGray},
+	}
 	rect := image.Rect(0, 0, totalWidth, totalHeight)
 	img := image.NewRGBA(rect)
 
@@ -98,7 +117,7 @@ func main() {
 		for i := 0; i < totalWidth; i++ {
 			x := (2*(float64(i)+0.5)/float64(totalWidth) - 1) * math.Tan(fov/2.0) * totalWidth / float64(totalHeight)
 			dir := (&vec3f{x, y, -1}).Normalize()
-			img.Set(i, j, castRay(&vec3f{0, 0, 0}, dir, sphere))
+			img.Set(i, j, castRay(&vec3f{0, 0, 0}, dir, spheres))
 		}
 	}
 
