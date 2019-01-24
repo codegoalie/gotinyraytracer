@@ -15,9 +15,8 @@ const (
 )
 
 var (
-	mint      = &vec3f{245 / 255.0, 255 / 255.0, 250 / 255.0}
-	slateGray = &vec3f{112 / 255.0, 128 / 255.0, 144 / 255.0}
-	black     = &vec3f{1 / 255.0, 1 / 255.0, 1 / 255.0}
+	ivory     = &vec3f{0.4, 0.4, 0.3}
+	redRubber = &vec3f{0.3, 0.1, 0.1}
 )
 
 type vec3f struct {
@@ -41,10 +40,10 @@ type Light struct {
 
 func main() {
 	spheres := []*Sphere{
-		{Center: &vec3f{-3, 0, -16}, Radius: 2, Color: mint},
-		{Center: &vec3f{-1, -1.5, -12}, Radius: 2, Color: slateGray},
-		{Center: &vec3f{1.5, -0.5, -18}, Radius: 3, Color: slateGray},
-		{Center: &vec3f{7, 5, -18}, Radius: 4, Color: mint},
+		{Center: &vec3f{-3, 0, -16}, Radius: 2, Color: ivory},
+		{Center: &vec3f{-1, -1.5, -12}, Radius: 2, Color: redRubber},
+		{Center: &vec3f{1.5, -0.5, -18}, Radius: 3, Color: redRubber},
+		{Center: &vec3f{7, 5, -18}, Radius: 4, Color: ivory},
 	}
 	lights := []*Light{
 		{Position: &vec3f{-20, 20, 20}, Intensity: 1.5},
