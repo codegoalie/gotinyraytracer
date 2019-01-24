@@ -15,8 +15,16 @@ const (
 )
 
 var (
-	ivory     = &vec3f{0.4, 0.4, 0.3}
-	redRubber = &vec3f{0.3, 0.1, 0.1}
+	ivory = &Material{
+		Albedo:           &vec2f{0.6, 0.3},
+		DiffuseColor:     &vec3f{0.4, 0.4, 0.3},
+		SpecularExponent: 50.0,
+	}
+	redRubber = &Material{
+		Albedo:           &vec2f{0.9, 0.1},
+		DiffuseColor:     &vec3f{0.3, 0.1, 0.1},
+		SpecularExponent: 10.0,
+	}
 )
 
 type vec3f struct {
@@ -25,11 +33,23 @@ type vec3f struct {
 	Z float64
 }
 
+type vec2f struct {
+	X float64
+	Y float64
+}
+
 // Sphere is represented by a vec3f center and a float64 radius
 type Sphere struct {
-	Center *vec3f
-	Radius float64
-	Color  *vec3f
+	Center   *vec3f
+	Radius   float64
+	Material *Material
+}
+
+// Material describes a surface of a body
+type Material struct {
+	Albedo           *vec2f
+	DiffuseColor     *vec3f
+	SpecularExponent float64
 }
 
 // Light source
@@ -40,13 +60,15 @@ type Light struct {
 
 func main() {
 	spheres := []*Sphere{
-		{Center: &vec3f{-3, 0, -16}, Radius: 2, Color: ivory},
-		{Center: &vec3f{-1, -1.5, -12}, Radius: 2, Color: redRubber},
-		{Center: &vec3f{1.5, -0.5, -18}, Radius: 3, Color: redRubber},
-		{Center: &vec3f{7, 5, -18}, Radius: 4, Color: ivory},
+		{Center: &vec3f{-3, 0, -16}, Radius: 2, Material: ivory},
+		{Center: &vec3f{-1, -1.5, -12}, Radius: 2, Material: redRubber},
+		{Center: &vec3f{1.5, -0.5, -18}, Radius: 3, Material: redRubber},
+		{Center: &vec3f{7, 5, -18}, Radius: 4, Material: ivory},
 	}
 	lights := []*Light{
 		{Position: &vec3f{-20, 20, 20}, Intensity: 1.5},
+		{Position: &vec3f{30, 50, -25}, Intensity: 1.8},
+		{Position: &vec3f{30, 20, 30}, Intensity: 1.7},
 	}
 	rect := image.Rect(0, 0, totalWidth, totalHeight)
 	img := image.NewRGBA(rect)
@@ -72,35 +94,38 @@ func main() {
 	mustWriteToDisk(img, "out.png")
 }
 
-func sceneIntersect(orig *vec3f, dir *vec3f, spheres []*Sphere) (bool, *vec3f, *vec3f, *vec3f) {
+func sceneIntersect(orig *vec3f, dir *vec3f, spheres []*Sphere) (bool, *vec3f, *vec3f, *Material) {
 	curDist := math.MaxFloat64
-	var curColor *vec3f
+	var curMaterial *Material
 	var hit *vec3f
 	var n *vec3f
 	for _, sphere := range spheres {
 		intersect, dist := sphere.RayIntersect(orig, dir)
 		if intersect && dist < curDist {
-			curColor = sphere.Color
+			curMaterial = sphere.Material
 			hit = orig.Add(dir.MultiplyF(dist))
 			n = hit.Subtract(sphere.Center).Normalize()
 			curDist = dist
 		}
 	}
-	return curDist < 1000, hit, n, curColor
+	return curDist < 1000, hit, n, curMaterial
 }
 
 func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light) *vec3f {
-	intersect, point, n, intersectColor := sceneIntersect(orig, dir, spheres)
+	intersect, point, n, intersectMaterial := sceneIntersect(orig, dir, spheres)
 	if !intersect {
 		return &vec3f{55 / 255.0, 176 / 255.0, 202 / 255.0}
 	}
 	diffuseLightIntensity := 0.0
+	specularLightIntensity := 0.0
 	for _, light := range lights {
 		lightDir := (light.Position.Subtract(point)).Normalize()
 		diffuseLightIntensity += light.Intensity * math.Max(0, lightDir.Multiply(n))
+		specularLightIntensity += math.Pow(math.Max(0, reflect(lightDir.MultiplyF(-1), n).MultiplyF(-1).Multiply(dir)), intersectMaterial.SpecularExponent) * light.Intensity
 	}
 
-	return intersectColor.MultiplyF(diffuseLightIntensity)
+	unitVec := &vec3f{1, 1, 1}
+	return intersectMaterial.DiffuseColor.MultiplyF(diffuseLightIntensity).MultiplyF(intersectMaterial.Albedo.X).Add(unitVec.MultiplyF(specularLightIntensity).MultiplyF(intersectMaterial.Albedo.Y))
 }
 
 // RayIntersect determines if the provided ray interescts with s.
@@ -150,6 +175,10 @@ func mustWriteToDisk(img image.Image, filename string) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func reflect(i *vec3f, n *vec3f) *vec3f {
+	return i.Subtract(n.MultiplyF(2.0).MultiplyF(i.Multiply(n)))
 }
 
 func (v *vec3f) Multiply(rhs *vec3f) float64 {
