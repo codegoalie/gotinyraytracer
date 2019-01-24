@@ -120,6 +120,19 @@ func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light) *vec3f
 	specularLightIntensity := 0.0
 	for _, light := range lights {
 		lightDir := (light.Position.Subtract(point)).Normalize()
+		lightDistance := (light.Position.Subtract(point)).norm()
+
+		var shadowOrig *vec3f
+		if lightDir.Multiply(n) < 0 {
+			shadowOrig = point.Subtract(n.MultiplyF(1e-3))
+		} else {
+			shadowOrig = point.Add(n.MultiplyF(1e-3))
+		}
+		shadowIntersect, shadowPoint, _, _ := sceneIntersect(shadowOrig, lightDir, spheres)
+		if shadowIntersect && shadowPoint.Subtract(shadowOrig).norm() < lightDistance {
+			continue
+		}
+
 		diffuseLightIntensity += light.Intensity * math.Max(0, lightDir.Multiply(n))
 		specularLightIntensity += math.Pow(math.Max(0, reflect(lightDir.MultiplyF(-1), n).MultiplyF(-1).Multiply(dir)), intersectMaterial.SpecularExponent) * light.Intensity
 	}
