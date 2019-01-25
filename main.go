@@ -16,19 +16,28 @@ const (
 
 var (
 	ivory = &Material{
-		Albedo:           &vec3f{0.6, 0.3, 0.1},
+		Albedo:           &vec4f{0.6, 0.3, 0.1, 0},
 		DiffuseColor:     &vec3f{0.4, 0.4, 0.3},
 		SpecularExponent: 50.0,
+		RefractiveIndex:  1.0,
+	}
+	glass = &Material{
+		Albedo:           &vec4f{0, 0.5, 0.1, 0.8},
+		DiffuseColor:     &vec3f{0.6, 0.7, 0.8},
+		SpecularExponent: 125.0,
+		RefractiveIndex:  1.5,
 	}
 	redRubber = &Material{
-		Albedo:           &vec3f{0.9, 0.1, 0.0},
+		Albedo:           &vec4f{0.9, 0.1, 0.0, 0},
 		DiffuseColor:     &vec3f{0.3, 0.1, 0.1},
 		SpecularExponent: 10.0,
+		RefractiveIndex:  1.0,
 	}
 	mirror = &Material{
-		Albedo:           &vec3f{0, 10, 0.8},
+		Albedo:           &vec4f{0, 10, 0.8, 0},
 		DiffuseColor:     &vec3f{1, 1, 1},
 		SpecularExponent: 1425.0,
+		RefractiveIndex:  1.0,
 	}
 )
 
@@ -36,6 +45,13 @@ type vec3f struct {
 	X float64
 	Y float64
 	Z float64
+}
+
+type vec4f struct {
+	X float64
+	Y float64
+	Z float64
+	T float64
 }
 
 // Sphere is represented by a vec3f center and a float64 radius
@@ -47,9 +63,10 @@ type Sphere struct {
 
 // Material describes a surface of a body
 type Material struct {
-	Albedo           *vec3f
+	Albedo           *vec4f
 	DiffuseColor     *vec3f
 	SpecularExponent float64
+	RefractiveIndex  float64
 }
 
 // Light source
@@ -126,6 +143,15 @@ func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light, depth 
 	}
 	reflectColor := castRay(reflectOrig, reflectDir, spheres, lights, depth+1)
 
+	refractDir := refract(dir, n, intersectMaterial.RefractiveIndex).Normalize()
+	var refractOrig *vec3f
+	if refractDir.Multiply(n) < 0 {
+		refractOrig = point.Subtract(n.MultiplyF(1e-3))
+	} else {
+		refractOrig = point.Add(n.MultiplyF(1e-3))
+	}
+	refractColor := castRay(refractOrig, refractDir, spheres, lights, depth+1)
+
 	diffuseLightIntensity := 0.0
 	specularLightIntensity := 0.0
 	for _, light := range lights {
@@ -150,7 +176,8 @@ func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light, depth 
 	unitVec := &vec3f{1, 1, 1}
 	return intersectMaterial.DiffuseColor.MultiplyF(diffuseLightIntensity).MultiplyF(intersectMaterial.Albedo.X).
 		Add(unitVec.MultiplyF(specularLightIntensity).MultiplyF(intersectMaterial.Albedo.Y)).
-		Add(reflectColor.MultiplyF(intersectMaterial.Albedo.Z))
+		Add(reflectColor.MultiplyF(intersectMaterial.Albedo.Z)).
+		Add(refractColor.MultiplyF(intersectMaterial.Albedo.T))
 }
 
 // RayIntersect determines if the provided ray interescts with s.
@@ -204,6 +231,29 @@ func mustWriteToDisk(img image.Image, filename string) {
 
 func reflect(i *vec3f, n *vec3f) *vec3f {
 	return i.Subtract(n.MultiplyF(2.0).MultiplyF(i.Multiply(n)))
+}
+
+func refract(i *vec3f, n *vec3f, refractiveIndex float64) *vec3f {
+	cosi := math.Max(-1, math.Min(1, i.Multiply(n)))
+	etai := 1.0
+	etat := refractiveIndex
+
+	localN := n
+
+	if cosi < 0 {
+		cosi = -cosi
+		tmp := etai
+		etai = etat
+		etat = tmp
+		localN = localN.MultiplyF(-1)
+	}
+
+	eta := etai / etat
+	k := 1 - eta*eta*(1-cosi*cosi)
+	if k < 0 {
+		return &vec3f{0, 0, 0}
+	}
+	return i.MultiplyF(eta).Add(localN.MultiplyF(eta*cosi - math.Sqrt(k)))
 }
 
 func (v *vec3f) Multiply(rhs *vec3f) float64 {
