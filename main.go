@@ -69,6 +69,14 @@ type Material struct {
 	RefractiveIndex  float64
 }
 
+// NewMaterial returns a properly initialized Material
+func NewMaterial() *Material {
+	return &Material{
+		RefractiveIndex: 1,
+		Albedo:          &vec4f{1, 0, 0, 0},
+	}
+}
+
 // Light source
 type Light struct {
 	Position  *vec3f
@@ -78,7 +86,7 @@ type Light struct {
 func main() {
 	spheres := []*Sphere{
 		{Center: &vec3f{-3, 0, -16}, Radius: 2, Material: ivory},
-		{Center: &vec3f{-1, -1.5, -12}, Radius: 2, Material: mirror},
+		{Center: &vec3f{-1, -1.5, -12}, Radius: 2, Material: glass},
 		{Center: &vec3f{1.5, -0.5, -18}, Radius: 3, Material: redRubber},
 		{Center: &vec3f{7, 5, -18}, Radius: 4, Material: mirror},
 	}
@@ -112,20 +120,36 @@ func main() {
 }
 
 func sceneIntersect(orig *vec3f, dir *vec3f, spheres []*Sphere) (bool, *vec3f, *vec3f, *Material) {
-	curDist := math.MaxFloat64
-	var curMaterial *Material
+	spheresDist := math.MaxFloat64
+	curMaterial := NewMaterial()
 	var hit *vec3f
 	var n *vec3f
 	for _, sphere := range spheres {
 		intersect, dist := sphere.RayIntersect(orig, dir)
-		if intersect && dist < curDist {
+		if intersect && dist < spheresDist {
 			curMaterial = sphere.Material
 			hit = orig.Add(dir.MultiplyF(dist))
 			n = hit.Subtract(sphere.Center).Normalize()
-			curDist = dist
+			spheresDist = dist
 		}
 	}
-	return curDist < 1000, hit, n, curMaterial
+	checkboardDist := math.MaxFloat64
+	if math.Abs(dir.Y) > 1e-3 {
+		d := -(orig.Y + 4) / dir.Y
+		pt := orig.Add(dir.MultiplyF(d))
+		if d > 0 && math.Abs(pt.X) < 10 && pt.Z < -10 && pt.Z > -30 && d < spheresDist {
+			checkboardDist = d
+			hit = pt
+			n = &vec3f{0, 1, 0}
+			if (int(0.5+hit.X+1000)+int(0.5*hit.Z))&1 != 0 {
+				curMaterial.DiffuseColor = &(vec3f{1, 1, 1})
+			} else {
+				curMaterial.DiffuseColor = &(vec3f{1, 0.7, 0.3})
+			}
+			curMaterial.DiffuseColor = curMaterial.DiffuseColor.MultiplyF(0.3)
+		}
+	}
+	return math.Min(spheresDist, checkboardDist) < 1000, hit, n, curMaterial
 }
 
 func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light, depth int) *vec3f {
