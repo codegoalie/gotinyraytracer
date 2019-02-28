@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"image"
 	"image/color"
+	_ "image/jpeg"
 	"image/png"
 	"math"
 	"os"
@@ -98,6 +99,20 @@ func main() {
 	rect := image.Rect(0, 0, totalWidth, totalHeight)
 	img := image.NewRGBA(rect)
 
+	// open background image file
+	reader, err := os.Open("envmap.jpg")
+	if err != nil {
+		panic(err)
+	}
+	m, _, err := image.Decode(reader)
+	if err != nil {
+		panic(err)
+	}
+	err = reader.Close()
+	if err != nil {
+		panic(err)
+	}
+
 	fov := math.Pi / 3
 	z := -totalHeight / (2.0 * math.Tan(fov/2.0))
 
@@ -155,10 +170,12 @@ func sceneIntersect(orig *vec3f, dir *vec3f, spheres []*Sphere) (bool, *vec3f, *
 	return math.Min(spheresDist, checkboardDist) < 1000, hit, n, curMaterial
 }
 
-func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light, depth int) *vec3f {
+func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light, background *image.Image, depth int) *vec3f {
 	intersect, point, n, intersectMaterial := sceneIntersect(orig, dir, spheres)
 	if depth > 4 || !intersect {
-		return &vec3f{55 / 255.0, 176 / 255.0, 202 / 255.0}
+
+		r, g, b, _ := (*background).At(x, y).RGBA()
+		return (&vec3f{float64(r), float64(g), float64(b)}).MultiplyF(1 / 65535.0)
 	}
 
 	reflectDir := reflect(dir, n).Normalize()
@@ -168,7 +185,7 @@ func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light, depth 
 	} else {
 		reflectOrig = point.Add(n.MultiplyF(1e-3))
 	}
-	reflectColor := castRay(reflectOrig, reflectDir, spheres, lights, depth+1)
+	reflectColor := castRay(reflectOrig, reflectDir, spheres, lights, background, depth+1)
 
 	refractDir := refract(dir, n, intersectMaterial.RefractiveIndex, 1).Normalize()
 	var refractOrig *vec3f
@@ -177,7 +194,7 @@ func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light, depth 
 	} else {
 		refractOrig = point.Add(n.MultiplyF(1e-3))
 	}
-	refractColor := castRay(refractOrig, refractDir, spheres, lights, depth+1)
+	refractColor := castRay(refractOrig, refractDir, spheres, lights, background, depth+1)
 
 	diffuseLightIntensity := 0.0
 	specularLightIntensity := 0.0
@@ -211,8 +228,10 @@ func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light, depth 
 // If an interesction occurs, the distance is also returns.
 // If not intersections, a zero value for distance is returned
 func (s Sphere) RayIntersect(orig *vec3f, dir *vec3f) (bool, float64) {
+	// vector from center to orig
 	l := s.Center.Subtract(orig)
 	tca := l.Multiply(dir)
+	// square of distance from ray to center
 	d2 := l.Multiply(l) - tca*tca
 	if d2 > s.Radius*s.Radius {
 		return false, 0
