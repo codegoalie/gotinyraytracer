@@ -98,13 +98,16 @@ func main() {
 	rect := image.Rect(0, 0, totalWidth, totalHeight)
 	img := image.NewRGBA(rect)
 
-	fov := 1.0
+	fov := math.Pi / 3
+	z := -totalHeight / (2.0 * math.Tan(fov/2.0))
 
 	for j := 0; j < totalHeight; j++ {
-		y := -(2*(float64(j)+0.5)/float64(totalHeight) - 1) * math.Tan(fov/2.0)
+		y := -(float64(j) + 0.5) + totalHeight/2.0
+
 		for i := 0; i < totalWidth; i++ {
-			x := (2*(float64(i)+0.5)/float64(totalWidth) - 1) * math.Tan(fov/2.0) * totalWidth / float64(totalHeight)
-			dir := (&vec3f{x, y, -1}).Normalize()
+			x := (float64(i) + 0.5) - float64(totalWidth)/2.0
+
+			dir := (&vec3f{x, y, z}).Normalize()
 			colorVec := castRay(&vec3f{0, 0, 0}, dir, spheres, lights, 0)
 			rgba := color.RGBA{
 				R: uint8(math.Min(math.Max(0, colorVec.X), 1) * 255),
