@@ -167,7 +167,7 @@ func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light, depth 
 	}
 	reflectColor := castRay(reflectOrig, reflectDir, spheres, lights, depth+1)
 
-	refractDir := refract(dir, n, intersectMaterial.RefractiveIndex).Normalize()
+	refractDir := refract(dir, n, intersectMaterial.RefractiveIndex, 1).Normalize()
 	var refractOrig *vec3f
 	if refractDir.Multiply(n) < 0 {
 		refractOrig = point.Subtract(n.MultiplyF(1e-3))
@@ -257,27 +257,19 @@ func reflect(i *vec3f, n *vec3f) *vec3f {
 	return i.Subtract(n.MultiplyF(2.0).MultiplyF(i.Multiply(n)))
 }
 
-func refract(i *vec3f, n *vec3f, refractiveIndex float64) *vec3f {
+func refract(i *vec3f, n *vec3f, refractiveIndex, etai float64) *vec3f {
 	cosi := math.Max(-1, math.Min(1, i.Multiply(n)))
-	etai := 1.0
-	etat := refractiveIndex
-
-	localN := n
 
 	if cosi < 0 {
-		cosi = -cosi
-		tmp := etai
-		etai = etat
-		etat = tmp
-		localN = localN.MultiplyF(-1)
+		return refract(i, n.MultiplyF(-1), etai, refractiveIndex)
 	}
 
-	eta := etai / etat
+	eta := etai / refractiveIndex
 	k := 1 - eta*eta*(1-cosi*cosi)
 	if k < 0 {
-		return &vec3f{0, 0, 0}
+		return &vec3f{1, 0, 0}
 	}
-	return i.MultiplyF(eta).Add(localN.MultiplyF(eta*cosi - math.Sqrt(k)))
+	return i.MultiplyF(eta).Add(n.MultiplyF(eta*cosi - math.Sqrt(k)))
 }
 
 func (v *vec3f) Multiply(rhs *vec3f) float64 {
