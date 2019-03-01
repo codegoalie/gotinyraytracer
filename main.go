@@ -258,7 +258,7 @@ func reflect(i *vec3f, n *vec3f) *vec3f {
 }
 
 func refract(i *vec3f, n *vec3f, refractiveIndex, etai float64) *vec3f {
-	cosi := math.Max(-1, math.Min(1, i.Multiply(n)))
+	cosi := -1 * math.Max(-1, math.Min(1, i.Multiply(n)))
 
 	if cosi < 0 {
 		return refract(i, n.MultiplyF(-1), etai, refractiveIndex)
