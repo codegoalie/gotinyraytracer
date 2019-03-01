@@ -123,7 +123,7 @@ func main() {
 			x := (float64(i) + 0.5) - float64(totalWidth)/2.0
 
 			dir := (&vec3f{x, y, z}).Normalize()
-			colorVec := castRay(&vec3f{0, 0, 0}, dir, spheres, lights, 0)
+			colorVec := castRay(&vec3f{0, 0, 0}, dir, spheres, lights, &m, 0)
 			rgba := color.RGBA{
 				R: uint8(math.Min(math.Max(0, colorVec.X), 1) * 255),
 				G: uint8(math.Min(math.Max(0, colorVec.Y), 1) * 255),
@@ -173,6 +173,11 @@ func sceneIntersect(orig *vec3f, dir *vec3f, spheres []*Sphere) (bool, *vec3f, *
 func castRay(orig *vec3f, dir *vec3f, spheres []*Sphere, lights []*Light, background *image.Image, depth int) *vec3f {
 	intersect, point, n, intersectMaterial := sceneIntersect(orig, dir, spheres)
 	if depth > 4 || !intersect {
+		u := 0.5 + math.Atan2(dir.Z, dir.X)/(2*math.Pi)
+		v := 0.5 - math.Asin(dir.Y)/math.Pi
+
+		x := int(float64((*background).Bounds().Dx()) * u)
+		y := int(float64((*background).Bounds().Dy()) * v)
 
 		r, g, b, _ := (*background).At(x, y).RGBA()
 		return (&vec3f{float64(r), float64(g), float64(b)}).MultiplyF(1 / 65535.0)
